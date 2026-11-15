@@ -269,7 +269,7 @@ leer `0x59` demasiado pronto (ver abajo), no del paso.
 
 | Parámetro | Resultado |
 |---|---|
-| asentamiento 100/200/300/400/500 ms | ruidoso y no monótono (6/3/5/3/2 detecciones); por debajo de 150 ms a veces 0, y a partir de 500 ms tiende a menos. **300 ms** por defecto |
+| asentamiento 100/200/300/400/500 ms | ruidoso y no monótono (6/3/5/3/2 detecciones); por debajo de 150 ms a veces 0 y a partir de 500 ms cae en picado (cuadrante V/L completo con 500 ms y con 700 ms: 1 sola portadora confirmada de las 4 de 34280). **300 ms** por defecto |
 | SR pedida 45000 / 27500 / 20000 ksps | 6 detecciones / 4 confirmadas · 4 / 4 · 3 / **0**. 20000 deja de verlas (ventana estrecha); 27500 da menos ruido; 45000 es el que más ve |
 | paso 12 MHz vs 6 MHz | los mismos 4 muxes; 12 es suficiente |
 | filtro `0x5f & 0xe0` desactivado (`-A`) | sin diferencia en el tramo (6 vs 6 detecciones) |
