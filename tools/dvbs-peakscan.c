@@ -48,6 +48,11 @@ struct hit {
 	int mod;
 };
 
+static int show_all;
+static int merge_khz = 8000;
+static int ladder_on = 1;
+static int reps = 2;        /* -u N: pasadas del barrido (el detector es estocastico) */   /* -R: desactivar escalera de SR en la confirmacion */   /* -m: radio de agrupacion (kHz) */   /* -A: no filtrar por 0x5f */
+
 static long now_ms(void)
 {
 	struct timespec ts;
@@ -181,7 +186,7 @@ static int read_peaks(int fd, struct hit *out, int max, int if_khz)
 			off = ((b[1] - 0x100) << 8) | b[0];
 		sr = (b[3] << 8) | b[2];
 		mod = b[5] & 0xe0;
-		if (mod < (sr > 5000 ? 0x40 : 0x60))
+		if (!show_all && mod < (sr > 5000 ? 0x40 : 0x60))
 			continue;
 		out[got].if_khz = if_khz;
 		out[got].off_khz = off;
@@ -311,7 +316,7 @@ int main(int argc, char **argv)
 	FILE *csv = NULL, *conf = NULL;
 	long t0;
 
-	while ((opt = getopt(argc, argv, "a:p:b:s:e:t:r:i:o:w:nqkh")) != -1) {
+	while ((opt = getopt(argc, argv, "a:p:b:s:e:t:r:i:o:w:m:u:nqkALh")) != -1) {
 		switch (opt) {
 		case 'a': adapter = atoi(optarg); break;
 		case 'p': pol_v = (optarg[0] == 'V' || optarg[0] == 'v'); break;
@@ -322,6 +327,10 @@ int main(int argc, char **argv)
 		case 'r': sr_req = atoi(optarg); break;
 		case 'i': bus = atoi(optarg); break;
 		case 'w': settle_ms = atoi(optarg); break;
+		case 'm': merge_khz = atoi(optarg); break;
+		case 'A': show_all = 1; break;
+		case 'L': ladder_on = 1; break;
+		case 'u': reps = atoi(optarg); break;
 		case 'o': snprintf(cspath, sizeof(cspath), "%s.csv", optarg);
 			  snprintf(confpath, sizeof(confpath), "%s.conf", optarg);
 			  break;
@@ -396,6 +405,7 @@ int main(int argc, char **argv)
 		       start_mhz, stop_mhz, step_mhz, sr_req, bus);
 
 	t0 = now_ms();
+	for (int pasada = 0; pasada < (reps > 0 ? reps : 1); pasada++)
 	for (long f = start_mhz; f <= stop_mhz; f += step_mhz) {
 		struct hit tmp[MAX_PEAKS];
 		int n, lvl = 0, tries;
@@ -440,7 +450,7 @@ int main(int argc, char **argv)
 
 	for (i = 0; i < nres; i++) {
 		if (nu && abs(hits[i].if_khz + hits[i].off_khz -
-			      (uniq[nu - 1].if_khz + uniq[nu - 1].off_khz)) < 8000 &&
+			      (uniq[nu - 1].if_khz + uniq[nu - 1].off_khz)) < merge_khz &&
 		    abs(hits[i].sr_ksps - uniq[nu - 1].sr_ksps) <= 500) {
 			if (abs(hits[i].off_khz) < abs(uniq[nu - 1].off_khz))
 				uniq[nu - 1] = hits[i];
@@ -456,34 +466,51 @@ int main(int argc, char **argv)
 		int if_khz = uniq[i].if_khz + uniq[i].off_khz;
 		int sat_khz = if_khz + lo * 1000;
 		int ds = -1, mod = -1, sr_real = -1;
+		int sr_ok = uniq[i].sr_ksps;
 
 		if (confirm) {
-			int r = tune_full(fd, if_khz,
-					  uniq[i].sr_ksps ? uniq[i].sr_ksps : sr_req,
-					  pol_v, band_high, &ds, &mod, &sr_real);
+			/* La SR medida puede venir mal: si no engancha, se prueba
+			 * una escalera alrededor antes de descartar la portadora. */
+			int ladder[5], nl = 0, k, r = 1;
+			int base = uniq[i].sr_ksps ? uniq[i].sr_ksps : sr_req;
+
+			ladder[nl++] = base;
+			if (ladder_on) {
+				ladder[nl++] = base * 3 / 4;
+				ladder[nl++] = base * 5 / 4;
+				ladder[nl++] = base / 2 > 1000 ? base / 2 : 8000;
+				ladder[nl++] = base * 2 < 50000 ? base * 2 : 45000;
+			}
+			for (k = 0; k < nl; k++) {
+				r = tune_full(fd, if_khz, ladder[k], pol_v, band_high,
+					      &ds, &mod, &sr_real);
+				if (r == 0) {
+					sr_ok = ladder[k];
+					break;
+				}
+			}
 
 			if (r > 0) {
 				if (!quiet)
 					printf("  %8.2f MHz %s  SR=%6d  descartada (sin lock)\n",
-					       sat_khz / 1000.0, pol_v ? "V" : "H",
-					       uniq[i].sr_ksps);
+					       sat_khz / 1000.0, pol_v ? "V" : "H", base);
 				continue;
 			}
 		}
 		printf("  %8.2f MHz %s  SR=%6d  %s %s  (offset %+d kHz)\n",
 		       sat_khz / 1000.0, pol_v ? "V" : "H",
-		       sr_real > 0 ? sr_real : uniq[i].sr_ksps,
+		       sr_real > 0 ? sr_real : sr_ok,
 		       ds >= 0 ? ds_name(ds) : "DVBS2",
 		       mod >= 0 ? mod_name(mod) : "AUTO", uniq[i].off_khz);
 		if (conf) {
 			fprintf(conf, "[%s_%d_%d]\n\tDELIVERY_SYSTEM = %s\n",
 				pol_v ? "V" : "H", sat_khz / 1000,
-				sr_real > 0 ? sr_real : uniq[i].sr_ksps,
+				sr_real > 0 ? sr_real : sr_ok,
 				ds >= 0 ? ds_name(ds) : "DVBS2");
 			fprintf(conf, "\tFREQUENCY = %d\n\tPOLARIZATION = %s\n",
 				sat_khz, pol_v ? "VERTICAL" : "HORIZONTAL");
 			fprintf(conf, "\tSYMBOL_RATE = %d\n\tMODULATION = %s\n",
-				(sr_real > 0 ? sr_real : uniq[i].sr_ksps) * 1000,
+				(sr_real > 0 ? sr_real : sr_ok) * 1000,
 				mod >= 0 ? mod_name(mod) : "AUTO");
 			fprintf(conf, "\tINNER_FEC = AUTO\n\tINVERSION = AUTO\n\n");
 		}

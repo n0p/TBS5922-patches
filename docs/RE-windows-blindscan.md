@@ -264,11 +264,27 @@ leer `0x59` demasiado pronto (ver abajo), no del paso.
    candidatos y sólo 7 pasaron una sintonización real (lock). La confirmación
    con `FE_HAS_LOCK` es obligatoria; es el equivalente a la fase 2 de Windows.
 
+
+### Qué parámetros pueden perder portadoras (medido, tramo 1450–1650 V/L)
+
+| Parámetro | Resultado |
+|---|---|
+| asentamiento 100/200/300/400/500 ms | ruidoso y no monótono (6/3/5/3/2 detecciones); por debajo de 150 ms a veces 0, y a partir de 500 ms tiende a menos. **300 ms** por defecto |
+| SR pedida 45000 / 27500 / 20000 ksps | 6 detecciones / 4 confirmadas · 4 / 4 · 3 / **0**. 20000 deja de verlas (ventana estrecha); 27500 da menos ruido; 45000 es el que más ve |
+| paso 12 MHz vs 6 MHz | los mismos 4 muxes; 12 es suficiente |
+| filtro `0x5f & 0xe0` desactivado (`-A`) | sin diferencia en el tramo (6 vs 6 detecciones) |
+| radio de agrupación 8 MHz vs 4 MHz | 8 correcto; 4 MHz parte una portadora en dos |
+| **una pasada vs dos** | 3–4 de 4 confirmadas según la pasada vs **4 de 4** con dos: el detector es **estocástico**, cada pasada se deja alguna. Por eso `-u 2` es el valor por defecto |
+| escalera de SR al confirmar (`-L`) | no recuperó ninguno de los 13 candidatos descartados del cuadrante V/L: esos picos no son portadoras sintonizables |
+
+Por defecto: 12 MHz, 300 ms, SR 45000, **2 pasadas**, sin escalera. Un cuadrante
+son 68 s de barrido (~1,6 min con confirmación), los cuatro ~7 min.
+
 ### Rendimiento real
 
-`dvbs-peakscan -p V -b L -s 950 -e 2150 -t 12`: 101 puntos en **34 s**
-(340 ms/punto) + confirmación de los candidatos → **1m37** el cuadrante
-completo. Los cuatro cuadrantes, ~6 min (frente a ~26 min del barrido plano).
+`dvbs-peakscan -p V -b L -s 950 -e 2150 -t 12`: 101 puntos por pasada en **34 s**
+(340 ms/punto); con las dos pasadas por defecto, 68 s + confirmación → ~1,6 min
+el cuadrante, ~7 min los cuatro (frente a ~26 min del barrido plano).
 
 
 Comparación con el barrido plano archivado (`~/blindscan_hispasat-30w_2026-11-15.conf`):

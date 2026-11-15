@@ -103,9 +103,11 @@ ficheros de este repositorio.
   sintonizada (`0x59`/`0x58`/`0x5a–0x5f`, protocolo del driver de Windows).
 * **`dvbs-peakscan`** (`tools/dvbs-peakscan.c`) — el barrido completo con ese
   detector, en un solo proceso y con ioctl directos: 12 MHz, SR 45000,
-  340 ms/punto (101 puntos = 34 s por cuadrante) y confirmación por lock de cada
-  candidato. Equivale a las dos fases del driver de Windows. Escribe `.csv` y
-  `.conf` DVBv5 con la modulación real.
+  340 ms/punto, **dos pasadas** (el detector es estocástico: una sola se deja
+  portadoras) y confirmación por lock de cada candidato. ~1,6 min por cuadrante,
+  ~7 min los cuatro. Escribe `.csv` y `.conf` DVBv5 con la modulación real.
+  `-A` quita el filtro `0x5f`, `-m` el radio de agrupación, `-w` el
+  asentamiento, `-u` las pasadas, `-L` la escalera de SR al confirmar.
 * **`lab/peakscan.py`** — la versión de exploración en Python (misma idea, pero
   lanzando `dvbs-tune` por punto: ~1,7 s/punto).
 
