@@ -101,8 +101,13 @@ ficheros de este repositorio.
   **EXPERIMENTAL / no fiable**: el AGC del TAS2101 no es reproducible así.
 * **`lab/peaks.py`** — enumera las portadoras que ve el demod en la ventana
   sintonizada (`0x59`/`0x58`/`0x5a–0x5f`, protocolo del driver de Windows).
-* **`lab/peakscan.py`** — barrido completo con ese detector: SR real y offset
-  por portadora, sin probar SR ni esperar lock.
+* **`dvbs-peakscan`** (`tools/dvbs-peakscan.c`) — el barrido completo con ese
+  detector, en un solo proceso y con ioctl directos: 12 MHz, SR 45000,
+  340 ms/punto (101 puntos = 34 s por cuadrante) y confirmación por lock de cada
+  candidato. Equivale a las dos fases del driver de Windows. Escribe `.csv` y
+  `.conf` DVBv5 con la modulación real.
+* **`lab/peakscan.py`** — la versión de exploración en Python (misma idea, pero
+  lanzando `dvbs-tune` por punto: ~1,7 s/punto).
 
 ## Blindscan: lo que hace el driver de Windows
 
@@ -127,10 +132,11 @@ Verificado en hardware (`lab/peaks.py`, Hispasat 30W):
 | IF 1550 V (11300 V 34280) | 1 | +2 840 kHz | **34 280** |
 | IF 1000 H (vacía) | 0 | — | — |
 
-Y el paso del driver de Windows (12 MHz) resulta **demasiado grueso** en este
-demod: el detector sólo ve la portadora a ±7 MHz del centro. Barriendo
-1450–1650 MHz en V/L (4 muxes de 34280): con 12 MHz salen 2, con 6 MHz salen
-los 4 (11222,4 / 11262,4 / 11302,9 / 11343,0).
+Con asentamiento correcto el paso de 12 MHz del driver de Windows es suficiente:
+en 1450–1650 MHz (V/L) salen los 4 muxes de 34280 (11223,0 / 11262,2 / 11301,4 /
+11343,6) en 17 puntos. Las trampas medidas —`0x59` retiene el recuento anterior y
+hay que limpiarlo, el detector tarda ~300 ms, y `lock_retries=0` deja el demod
+sin re-sintonizar— están en `docs/RE-windows-blindscan.md`.
 
 ## Resultados
 
@@ -173,11 +179,10 @@ esta revisión. Licencia del driver: GPL-2.0 (módulo de kernel).
 
 ## Pendientes
 
-* Llevar el detector de portadoras al driver (`tas2101_read_status()` con la
-  escalera de `0x31`, y un `tas2101_scan_point()` que replique `0xba3c`) para
-  que el barrido no dependa de `i2ctransfer` desde espacio de usuario.
-* Rehacer `dvbs-blindscan` sobre `peakscan` (6 MHz, SR 45000) y comparar contra
-  los 24 transpondedores de referencia.
+* Meter el barrido en el driver (misc device + kthread, como Windows) para que
+  no haga falta root ni `/dev/i2c-9`; hoy `dvbs-peakscan` funciona en un proceso
+  con ioctl directos, que es el 95% de la ganancia.
+* Rehacer `dvbs-blindscan` sobre `dvbs-peakscan` (12 MHz, SR 45000).
 * Repetir el barrido con `--srs 8000` para los muxes de SR pequeño.
 * Mapear el `(GUID, PropertyId)` exacto de la propiedad privada que dispara el
   barrido en el driver de Windows (el handler está en RVA `0xa054`; su tabla no

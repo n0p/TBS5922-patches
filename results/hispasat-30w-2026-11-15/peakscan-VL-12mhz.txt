@@ -1,0 +1,19 @@
+# dvbs-peakscan -p V -b L -s 950 -e 2150 -t 12   (2026-11-15 22:1x)
+# Cuadrante V/L completo: 101 puntos en 34,4 s (340 ms/punto).
+# 27 detecciones -> 20 candidatos -> 7 confirmados con lock:
+#
+#   11223.16  V  34280  DVBS2 QPSK
+#   11263.00  V  34280  DVBS2 QPSK
+#   11302.20  V  34280  DVBS2 QPSK
+#   11343.16  V  34280  DVBS2 QPSK
+#   11491.96  V   4000  DVBS    QPSK
+#   11502.39  V  10200  DVBS2 PSK/8
+#   11515.70  V   4000  DVBS    QPSK
+#
+# Descartados 13 candidatos de SR pequeno (sin lock con una sola sintonia):
+#   10730.94/25000, 10765.95/8050, 10779.52/16100, 10797.59/1709,
+#   10799.43/2399, 10817.57/1781, 10826.56/1668, 10825.31/2605,
+#   10914.59/3220, 10924.61/8050, 11654.54/2940, 11690.80/1767, 11722.41/15000
+#
+# Tiempo total del cuadrante con confirmacion: 1m37.
+# Los 4 muxes de 34280 coinciden con el barrido plano (11224/11264/11305/11344).

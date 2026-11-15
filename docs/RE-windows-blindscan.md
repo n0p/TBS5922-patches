@@ -214,9 +214,9 @@ for each rec in buf[0..n-1]:
 3. `dvbs-blindscan`: sustituir la fase 1 de AGC por el barrido de 12 MHz a
    SR 45000 leyendo 0x59/0x58..; la fase 2 se queda como está (sintonía +
    confirmación), pero alimentada con SR y frecuencia reales.
-4. Medir: el paso de 12 MHz del driver de Windows es demasiado grueso en este
-   demod (el detector sólo ve la portadora a ±7 MHz del centro); con 6 MHz son
-   201 puntos por cuadrante, sin esperar lock y con SR/frecuencia reales.
+4. Medir: el paso de 12 MHz del driver de Windows es válido; con asentamiento
+   de 300 ms son 101 puntos por cuadrante, sin esperar lock y con SR/frecuencia
+   reales (`tools/dvbs-peakscan.c`).
 
 ## Verificación en hardware (hecha, 2026-11-15 21:40)
 
@@ -232,18 +232,44 @@ funcionan. Medido en Hispasat 30W:
 Con SR pedida 45000 el demod devuelve la SR real y el offset de frecuencia de la
 portadora: no hace falta probar SR ni afinar a mano.
 
-Barrido `lab/peakscan.py -p V -b L 1450 1650` (mismo tramo, 4 muxes reales de
-34280):
+Barrido del tramo 1450–1650 MHz (V/L, 4 muxes reales de 34280), con la
+herramienta definitiva `tools/dvbs-peakscan.c` (un proceso, ioctl directos):
 
-| Paso | Puntos | Portadoras detectadas | Muxes distintos |
-|---|---|---|---|
-| 12 MHz | 18 | 2 | 2 de 4 |
-| 6 MHz | 36 | 12 | **4 de 4** (11222.5, 11262.5, 11302.5, 11343.0) |
+| Paso | Puntos | Portadoras | Muxes distintos | ms/punto |
+|---|---|---|---|---|
+| 12 MHz | 17 | 6 | **4 de 4** | 333 |
+| 6 MHz | 34 | 12 | 4 de 4 | 333 |
 
-Moraleja: **12 MHz es demasiado paso para este demod** (el detector sólo ve la
-portadora dentro de ~±7 MHz del centro sintonizado); 6 MHz sí. A 6 MHz son ~1,7 s
-por punto (201 puntos/cuadrante ≈ 6 min), parecido al barrido plano actual pero
-con SR y frecuencia reales y sin duplicados.
+Los cuatro salen con paso de 12 MHz: **el paso del driver de Windows es
+correcto**. Un intento anterior mío con 12 MHz daba 2 de 4; era un artefacto de
+leer `0x59` demasiado pronto (ver abajo), no del paso.
+
+### Trampas del detector (medidas, no deducidas)
+
+1. **`0x59` retiene el recuento del punto anterior.** Es escribible: hay que
+   ponerlo a 0 antes de retunear. Si no, se leen portadoras fantasma con el
+   offset del punto previo (síntoma: `off` constante y frecuencias que avanzan
+   con el paso).
+2. **El detector tarda ~300 ms en publicar.** Con 150 ms de asentamiento salen 0
+   detecciones; con 250 ya salen; 300 es el valor por defecto. Sondea `0x31`
+   pero **no** cortes en cuanto el nivel suba (oscila: 1 → 5 → 1) ni en cuanto
+   `0x59 != 0` (puede ser basura heredada).
+3. **`lock_retries=0` rompe el barrido.** Con 0 el driver no llama a
+   `read_status()` y el demod **no se re-sintoniza**: se queda pegado a la
+   portadora anterior y repite offset indefinidamente. Con `lock_retries=1`
+   (un sondeo de 20 ms) va bien y ahorra ~280 ms por punto. La herramienta lo
+   pone a 1 durante el barrido y lo restaura al acabar.
+4. **La fase 1 da candidatos, no transpondedores.** Con asentamiento corto
+   aparecen picos que no enganchan: en el cuadrante V/L completo salieron 20
+   candidatos y sólo 7 pasaron una sintonización real (lock). La confirmación
+   con `FE_HAS_LOCK` es obligatoria; es el equivalente a la fase 2 de Windows.
+
+### Rendimiento real
+
+`dvbs-peakscan -p V -b L -s 950 -e 2150 -t 12`: 101 puntos en **34 s**
+(340 ms/punto) + confirmación de los candidatos → **1m37** el cuadrante
+completo. Los cuatro cuadrantes, ~6 min (frente a ~26 min del barrido plano).
+
 
 Comparación con el barrido plano archivado (`~/blindscan_hispasat-30w_2026-11-15.conf`):
 ese tramo tiene **12 entradas para 4 portadoras**; el detector las agrupa en 4.

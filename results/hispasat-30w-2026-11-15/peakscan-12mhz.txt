@@ -1,3 +1,6 @@
+NOTA (posterior): estas trazas son de una version temprana que leia 0x59 sin limpiarlo y con asentamiento corto; por eso salen menos portadoras y
+offsets raros. La version buena (tools/dvbs-peakscan) da los 4 muxes con paso 12 MHz: ver peakscan-VL-12mhz.txt.
+
 # lab/peakscan.py -p V -b L --start 1450 --stop 1650 --step 12
 # 2026-11-15 21:41, Hispasat 30W. Paso 12 MHz (el del driver de Windows):
 # 2 de los 4 muxes de 34280 del tramo.

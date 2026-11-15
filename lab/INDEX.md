@@ -22,7 +22,7 @@ sudo cp /usr/local/bin/dvbs-tune /tmp/dvbs-tune
 | `tunerregs.sh [IF SR POL BAND]` | Abre la puerta I2C del demod (registro 0x06 bit 0x80) y vuelca registros del AV2012 (0x63) y del TAS2101 (0x68) tras sintonizar. Con esto se vio que el PLL del tuner bloquea (`0x0b` bit0) y que `TUNER_CTRL` vuelve a `0x96`. |
 | `dvbs-blindscan-v1.py` | Primera versión del barrido (sólo fuerza bruta frecuencia × SR, sin fase de AGC). Se conserva por si falla la detección de portadoras; es más lenta (0,75–1,4 s por punto). |
 | `peaks.py` | Enumera las portadoras que ve el demod en la ventana sintonizada usando el protocolo del driver de Windows (`0x59` cuenta, `0x58` índice, `0x5a–0x5f` offset/SR/estado). Requiere el frontend ya sintonizado con `dvbs-tune -s 45000`. Ver `../docs/RE-windows-blindscan.md`. |
-| `peakscan.py -p V\|H -b L\|H --start MHZ --stop MHZ [--step 6]` | Barrido con ese detector: sintoniza a SR 45000 y lista las portadoras con su SR real y su offset. Equivale a la fase 1 del driver de Windows. Paso fiable medido: **6 MHz** (con 12 se pierden portadoras). ~1,7 s por punto. |
+| `peakscan.py -p V\|H -b L\|H --start MHZ --stop MHZ [--step 6]` | Barrido con ese detector: sintoniza a SR 45000 y lista las portadoras con su SR real y su offset. Equivale a la fase 1 del driver de Windows. ~1,7 s por punto (lanza `dvbs-tune` en cada punto); para uso real, `tools/dvbs-peakscan` hace lo mismo en 340 ms/punto. |
 
 ## Registros útiles del TAS2101 (i2c 0x68)
 

@@ -170,13 +170,23 @@ En cada punto el demod le dice **cuántas portadoras ve y cuáles** (`0x59` cuen
 validez). Es decir: el TAS2101 **sí tiene detector multi-portadora**; el driver
 Linux no lo usa y de ahí que haya que probar SR a ciegas. Detalle completo,
 registros y pseudocódigo en `/usr/src/tbs-qbox22-0.3/docs/RE-windows-blindscan.md`;
-sondas listas en `lab/peaks.py` (una ventana) y `lab/peakscan.py` (barrido).
+sondas listas en `lab/peaks.py` (una ventana), `lab/peakscan.py` (barrido en
+Python) y `tools/dvbs-peakscan.c` (el bueno: un proceso, ioctl directos,
+340 ms/punto, 12 MHz, 34 s por cuadrante + confirmación por lock).
 
-**El paso de 12 MHz del driver de Windows se queda corto en este demod**: el
-detector sólo ve la portadora dentro de ~±7 MHz del centro sintonizado. Medido
-barriendo 1450–1650 MHz en V/L (4 muxes de 34280): 12 MHz → 2 de 4, 6 MHz → 4 de
-4, con la frecuencia real de cada una (±1 MHz de lo que da el barrido plano) y
-~1,7 s por punto. Usa 6 MHz; 12 sólo vale como pasada rápida de tanteo.
+**El paso de 12 MHz del driver de Windows vale** (un intento mío anterior decía
+que no: era artefacto de leer `0x59` antes de tiempo). Medido en 1450–1650 MHz
+V/L con los 4 muxes de 34280: con 12 MHz salen los 4. Trampas que hay que
+respetar, todas medidas:
+
+1. `0x59` **retiene** el recuento del punto anterior: escribir 0 en `0x59` antes
+   de retunear, si no salen portadoras fantasma con el offset viejo.
+2. El detector tarda **~300 ms** en publicar (con 150 ms salen 0). No cortes al
+   ver `0x59 != 0` ni al subir el nivel de `0x31` (oscila 1→5→1).
+3. **`lock_retries=0` rompe el barrido**: el driver no llama a `read_status()` y
+   el demod no se re-sintoniza (se queda pegado y repite offset). Usa 1 (~20 ms).
+4. La fase 1 da **candidatos**: confirma cada uno con una sintonía real y
+   `FE_HAS_LOCK` (en V/L completo: 20 candidatos → 7 reales).
 Verificado también que con SR pedida 45000 devuelve la SR exacta (27 500 y 34 280
 en dos muxes conocidos) y 0 portadoras en una frecuencia vacía: la lectura no es
 ruido, es el detector.
