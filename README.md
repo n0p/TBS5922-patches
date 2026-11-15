@@ -141,8 +141,14 @@ las trazas del detector de portadoras a 12 y 6 MHz para el mismo tramo.
 
 ## Realidades de este hardware
 
-* **No hay blindscan DVBv5**: el TAS2101 no expone `FE_CAN_BLINDSEARCH`; el
-  barrido se hace sintonizando y leyendo registros.
+* **Blindscan: el chip sí puede, el módulo Linux no lo expone.** El TAS2101 tiene
+  un detector multi-portadora real —`0x59` número de portadoras, `0x58` índice,
+  `0x5a/0x5b` offset de frecuencia, `0x5c/0x5d` SR medida, `0x5f` validez— que es
+  justo lo que usa el driver de Windows y está verificado aquí con
+  `lab/peaks.py` (SR 27500 y 34280 exactas, 0 en frecuencia vacía). Lo que falta
+  no es hardware sino API: `tas2101` no publica `FE_CAN_BLINDSEARCH` ni la
+  propiedad DVBv5 de blindscan, así que `blindscan(1)` de dvb-apps no sirve y hay
+  que sintonizar y leer registros (`dvbs-blindscan`, `lab/peakscan.py`).
 * **Cada sintonía cuesta ~0,75 s** (el FX2 atiende cada transferencia con ~35 ms
   de latencia y el driver escribe registro a registro). El lock real llega a los
   0,7–0,9 s, por eso `-w 2000` es lo fiable y con `-w 500` se pierde la mitad.

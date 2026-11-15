@@ -74,10 +74,12 @@ dvbs-tune -f 1530000 -s 27500 -p H -b H -w 2000   # IF kHz, SR ksps
 
 ## Realidades de este hardware
 
-* **No hay blindscan de hardware**: el TAS2101 no implementa la API DVBv5 de
-  blindscan (`FE_CAN_BLINDSEARCH` no está), así que `blindscan(1)` de dvb-apps
-  no sirve. El barrido de `dvbs-blindscan` es a base de sintonizar y leer el
-  estado del demodulador.
+* **Blindscan**: el TAS2101 **sí tiene** detector multi-portadora (registros
+  `0x58`–`0x5f`; es lo que usa el driver de Windows, ver
+  `RE-windows-blindscan.md`). Lo que no hay es API: `tas2101` no publica
+  `FE_CAN_BLINDSEARCH` ni la propiedad DVBv5 de blindscan, así que
+  `blindscan(1)` de dvb-apps no sirve y el barrido de `dvbs-blindscan` se hace
+  sintonizando y leyendo el estado del demodulador.
 * **Cada sintonía cuesta ~0,75 s**: el puente FX2 atiende cada transferencia de
   control con ~35 ms de latencia y el driver escribe registro a registro.
   Un lock se declara a los ~0,7–0,9 s de sintonizar; por eso `-w 2000` es lo

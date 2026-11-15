@@ -26,6 +26,8 @@ HH quedan pendientes (`sudo dvbs-blindscan --step 8 --out /tmp/blindscan_30W`).
 /usr/local/bin/dvbs-blindscan            barrido a ciegas (2 fases)
 /lib/firmware/dvb-usb-tbsqbox-id5922.fw  firmware FX2 (8 KiB, imprescindible)
 /etc/modules-load.d/tbs-qbox22.conf      autocarga: dvb-usb-tbsqbox22
+~/src/TBS5922-patches/                   paquete + parches + herramientas + resultados
+                                         (remoto: github.com/n0p/TBS5922-patches)
 ```
 
 Recompilar / reinstalar:
@@ -35,6 +37,24 @@ sudo dkms build   -m tbs-qbox22 -v 0.3
 sudo dkms install -m tbs-qbox22 -v 0.3 --force
 sudo modprobe dvb-usb-tbsqbox22
 ```
+
+`dkms install --force` **no siempre recoge los fuentes nuevos**: reutiliza el
+`.ko` ya construido y el módulo instalado sigue con el código viejo. Si has
+tocado `*.c`, borra y reconstruye el paquete entero:
+
+```sh
+sudo dkms remove  -m tbs-qbox22 -v 0.3 --all
+sudo dkms add     -m tbs-qbox22 -v 0.3
+sudo dkms build   -m tbs-qbox22 -v 0.3 && sudo dkms install -m tbs-qbox22 -v 0.3
+```
+
+Verificar que lo cargado es lo editado: el módulo dvb-usb se llama
+`dvb_usb_tbsqbox22` (`modinfo -F version tbs-qbox22` no devuelve nada), así que
+`modinfo -F version dvb_usb_tbsqbox22` contra `MODULE_VERSION` del fuente, y la
+fecha del `.ko` de `/lib/modules/$(uname -r)/updates/dkms/` contra la del
+último cambio en `/usr/src/tbs-qbox22-0.3/` — `.ko` anterior al `touch` = no
+está cargado lo que crees. Para la prueba fuerte (¿reproduce el árbol lo
+instalado?) usar `srcversion`, ver `references/auditar-paquete-driver.md` §3.
 
 Origen del código: `crazycat69/linux_media` rama `latest` (base 6.5), ficheros
 `tbs-qbox22.c/.h`, `tas2101.c/.h/_priv.h`, `av201x.c/.h/_priv.h` + headers
@@ -59,9 +79,9 @@ paquete de headers de Debian no instala.
 ```sh
 # una frecuencia: -f IF en kHz, -s SR en ksps, -p V|H, -b L(banda baja)|H(alta)
 dvbs-tune -a 0 -f 1530000 -s 27500 -p H -b H -w 2000
-# -> lock=1 status=0x1f str=53590 cnr=1290 msr=27500 ds=6 mod=9 ...
+# -> lock=1 status=0x1f str=53590 cnr=12900 msr=27500 ds=6 mod=9 ...
 #    msr = SR medida (ksps), ds 6=DVBS2/5=DVBS, mod 9=PSK/8, 0=QPSK
-#    cnr va en centesimas de dB (1290 = 12,90 dB)
+#    cnr va en MILESIMAS de dB (FE_SCALE_DECIBEL): 12900 = 12,90 dB
 
 # barrido a ciegas completo (4 cuadrantes V/H x banda baja/alta).
 # --no-agc = barrido plano (recomendado: el AGC del TAS2101 no es reproducible)
@@ -70,6 +90,8 @@ sudo dvbs-blindscan --no-agc --step 4 --srs 8000  --out /tmp/blindscan_30W_b
 # deja /tmp/blindscan_30W.csv (traza: mezcla filas de AGC y de lock) y
 # /tmp/blindscan_30W.conf (DVBv5; puede traer entradas duplicadas: deduplicar
 # antes de pasarlo a dvbv5-scan, aunque dvbv5-scan no se rompe con ellas)
+# MODULATION debe salir 8PSK/16APSK/32APSK: libdvbv5 trae el alias PSK/8, pero
+# lo que escribe dvbv5-scan y lo que espera el formato es 8PSK
 
 # enumerar canales de lo encontrado
 dvbv5-scan -a 0 -l EXTENDED -o /tmp/canales.conf /tmp/blindscan_30W.conf
@@ -111,21 +133,68 @@ IF = frecuencia del satélite − LO del LNB (9750 banda baja, 10600 banda alta)
    meter al usuario en el grupo `i2c`. El `LNB_CTRL` es el registro `0x10` del
    demod: bit `0x40` = 18 V (si no, 13 V), bit `0x01` = tono 22 kHz.
 8. **No escribir números de serie** en notas ni ficheros del proyecto.
+9. **Escalas de estadísticas** (API DVBv5): `FE_SCALE_DECIBEL` = 1/1000 dB y va
+   en `svalue` (con signo); `FE_SCALE_RELATIVE` = 0..65535 en `uvalue`.
+   `tas2101_read_snr()` calcula `val` en **décimas** de dB (la tabla lo canta:
+   `tas2101_priv.h` `{10, 0x65a} /* 1.0 dB */`), así que el CNR correcto es
+   `100 * val`; con `10 * val` la lectura sale 10× baja (1290 = 1,29 dB).
+   **Un CNR de 1,x dB con lock es un error de escala, no señal mala**: DVB-S2 no
+   engancha por debajo de ~5 dB. Y si una herramienta divide por 100 para pasar
+   a dB, también está mal: el divisor es 1000.
+   El parche `0001` del repo `TBS5922-patches` aplica `10 * val` y sus
+   herramientas dividen por 100: las dos cosas están mal por lo mismo, así que
+   esa serie no se da por buena sin corregirla antes a `100 * val` (y `/1000`
+   en lo que imprima dB).
+10. **Un barrido en marcha es dueño del frontend.** No lanzar `dvbs-tune`,
+   `dvb-fe-tool`, `dvbv5-scan`/`-zap` ni recargar módulos mientras corre uno: es
+   el mismo `frontend0` y un `modprobe -r` aborta el barrido a medias. Para
+   auditar un barrido ajeno, sólo lecturas de ficheros: `pgrep -af`,
+   `ls -l /proc/<pid>/fd`, `ps -o etime= -p <pid>`, la cabecera del log y el
+   `wc -l` del `.csv`. Ojo: el dueño puede no ser tuyo (la web skywandering, un
+   locker de captura, otro SSH). Si el `open` falla verás
+   `Device or resource busy` y **después** una cascada de `Bad file descriptor`
+   en todos los ioctls: eso es convivencia, no un driver degradado. Confirma
+   con `sudo fuser -v /dev/dvb/adapter0/frontend0` antes de tocar el módulo.
+   Para esperar a que termine un proceso ajeno usa `ps -p <pid>`, **no
+   `kill -0 <pid>`**: sin permiso para señalizarlo `kill -0` devuelve EPERM y el
+   bucle concluye que ya terminó cuando sigue vivo.
 
 ## Blindscan: qué hay y qué no
 
-El **TBS 5922 sí hace blindscan bajo Windows**, pero lo ejecuta el *driver de
-Windows*: la herramienta oficial (`tbs-blindscan_v3.0.2.2.exe`) es un PE nativo
-de 32 bits que sólo importa `kernel32/user32/oleaut32/advapi32` — es una app
-BDA/DirectShow que habla por COM con el driver de TBS. No se puede usar aquí.
+El **TBS 5922 sí hace blindscan bajo Windows**, y lo hace **el driver, no la
+app**: `tbs5922.sys` lanza un hilo de sistema (`PsCreateSystemThread`, rutina en
+RVA 0xa0fc) desde una propiedad KS y barre 950–2150 MHz **en pasos de 12 MHz con
+SR fijo 45000**, sin esperar lock (sale cuando el estado de `0x31` llega a 2).
+En cada punto el demod le dice **cuántas portadoras ve y cuáles** (`0x59` cuenta,
+`0x58` índice, `0x5a/0x5b` offset de frecuencia, `0x5c/0x5d` SR real, `0x5f`
+validez). Es decir: el TAS2101 **sí tiene detector multi-portadora**; el driver
+Linux no lo usa y de ahí que haya que probar SR a ciegas. Detalle completo,
+registros y pseudocódigo en `/usr/src/tbs-qbox22-0.3/docs/RE-windows-blindscan.md`;
+sondas listas en `lab/peaks.py` (una ventana) y `lab/peakscan.py` (barrido).
+
+**El paso de 12 MHz del driver de Windows se queda corto en este demod**: el
+detector sólo ve la portadora dentro de ~±7 MHz del centro sintonizado. Medido
+barriendo 1450–1650 MHz en V/L (4 muxes de 34280): 12 MHz → 2 de 4, 6 MHz → 4 de
+4, con la frecuencia real de cada una (±1 MHz de lo que da el barrido plano) y
+~1,7 s por punto. Usa 6 MHz; 12 sólo vale como pasada rápida de tanteo.
+Verificado también que con SR pedida 45000 devuelve la SR exacta (27 500 y 34 280
+en dos muxes conocidos) y 0 portadoras en una frecuencia vacía: la lectura no es
+ruido, es el detector.
+
+El ejecutable `tbs-blindscan_v3.0.2.2.exe` no sirve aquí: PE32 que sólo importa
+`kernel32/user32/oleaut32/advapi32` (es el instalador/launcher de la app de
+escritorio, con un blob de 463 KB en overlay).
 
 En Linux el `tas2101` **no expone** `FE_CAN_BLINDSEARCH` ni la API DVBv5 de
-blindscan, así que `blindscan(1)` de dvb-apps no sirve. Opciones reales:
+blindscan, pero **no porque el chip no sepa**: el detector de portadoras del
+TAS2101 existe y funciona (`lab/peaks.py`, `lab/peakscan.py`). Lo que falta es
+que el módulo lo publique; `blindscan(1)` de dvb-apps no sirve. Opciones reales:
 
 * `dvbs-blindscan` (lo instalado): fase 1 mapa de AGC cada 8–10 MHz con el
   ancho de banda máximo (SR 45000 → BW 40 MHz), fase 2 caza de lock en cada
-  portadora probando varios SR y leyendo luego la SR real. 25–45 min los cuatro
-  cuadrantes. Es lo que ha encontrado los transpondedores actuales.
+  portadora probando varios SR y leyendo luego la SR real. Con `--no-agc` son
+  ~2 h los cuatro cuadrantes (ver «Estado del barrido»). Es lo que ha
+  encontrado los transpondedores actuales.
 * Pila **neumo** de deeptho (`neumo-drivers` + `neumo-blindscan`): única vía
   "asistida por hardware" en Linux; implementa *spectrum scan* para tas2101
   (resolución pobre y marcada como incompleta para este demod) y **sustituye
@@ -162,6 +231,9 @@ lab/hypo.py                             descartar hipótesis de cristal/polariza
 lab/satprobe.py                         smoke test contra 30 TP conocidos
 lab/tunerregs.sh                        volcado de registros tras sintonizar
 lab/dvbs-blindscan-v1.py                primera versión (fuerza bruta pura)
+lab/peaks.py                            enumera portadoras vía 0x59/0x58/0x5a-0x5f
+                                        (protocolo del driver de Windows)
+docs/RE-windows-blindscan.md            RE del blindscan de tbs5922.sys (radare2)
 lab/results/                            trazas y .conf del cuadrante VL ya barrido
 ```
 
@@ -172,11 +244,35 @@ del TAS2101 es cada cosa (0x06 puerta, 0x10 LNB_CTRL, 0x31 estado, 0x42 AGC,
 
 ## Estado del barrido
 
-`--no-agc --step 4 --srs 45000` = 301 puntos por cuadrante, ~1,3 s por punto
-(unos 26 min los cuatro). En modo `--no-agc` no se hace la pasada de AGC: se
-sintoniza directamente cada frecuencia, se para en el primer lock y se valida
-repitiendo la medida (si la SR medida no se repite, el hit se descarta) y
-deduplicando por frecuencia+SR.
+`--no-agc --step 4 --srs 45000` = 301 puntos por cuadrante. En modo `--no-agc`
+no se hace la pasada de AGC: se sintoniza cada frecuencia, se para en el primer
+lock y se valida repitiendo la medida (si la SR medida no se repite, el hit se
+descarta) y deduplicando por frecuencia+SR.
 
-Pendiente en esta máquina: HL, VH y HH del barrido de 30W (VL ya hecho, sus
-trazas están en `lab/results/`).
+**El ETA lo manda el coste del punto vacío, y no es 1,3 s.** `measure()` usa
+`-w 2000` y prueba hasta 3 offsets (±1 paso) por SR: un punto sin lock cuesta
+~6–7 s, así que 301 × 4 cuadrantes ≈ **2 h por SR**, y una segunda pasada con
+`--srs 8000` duplica. No estimes a ojo: muestrea el `-f` del hijo `dvbs-tune`
+dos veces separadas ~90 s y saca puntos/s.
+
+```sh
+ps -o args= -p $(pgrep -P $(pgrep -f dvbs-blindscan | head -1) -f dvbs-tune); \
+  sleep 90; ps -o args= -p $(pgrep -P $(pgrep -f dvbs-blindscan | head -1) -f dvbs-tune)
+```
+
+Para bajar el ETA, un `--wait` corto (400 ms para barrer, 2000 ms sólo para
+refinar/validar) rinde más que probar más SR u offsets.
+
+**El CSV no se vuelca en los fallos**: el `csv.flush()` del script sólo está en
+la rama de lock, así que la traza en disco se queda en la cabecera hasta el
+primer hit y un kill se lleva todo lo bufferizado. Antes de dar un barrido por
+lanzado, comprobar que `wc -l` del `.csv` crece; si no, añadir `flush()` tras
+cada escritura (o abrir con `buffering=1`).
+
+Pendiente en esta máquina: los cuatro cuadrantes de 30W ya están barridos
+(`--no-agc --step 4 --srs 45000`) y archivados con fecha y satélite en
+`~/blindscan_hispasat-30w_2026-11-15.*` (+ copia en `results/` del repo):
+135 locks → 30 grupos → 24 transpondedores. Quedan: portar el detector de
+portadoras al driver (escalera de `0x31` + `tas2101_scan_point()`), rehacer
+`dvbs-blindscan` sobre `peakscan` a 6 MHz y la pasada con `--srs 8000` para los
+muxes de SR pequeño.
