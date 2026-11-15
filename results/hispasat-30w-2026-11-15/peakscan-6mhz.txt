@@ -1,0 +1,22 @@
+# lab/peakscan.py -p V -b L --start 1450 --stop 1650 --step 6
+# 2026-11-15 21:42, Hispasat 30W. Paso 6 MHz: los 4 muxes de 34280 del tramo,
+# cada uno visto en 3 puntos consecutivos (de ahí los "duplicados": son la
+# misma portadora vista desde tres centros distintos, con su offset).
+ 1468.0 MHz -> 11222.12 MHz V  SR= 34280  off= +4120 kHz  0x5f&0xe0=0xa0
+ 1474.0 MHz -> 11222.36 MHz V  SR= 34280  off= -1640 kHz  0x5f&0xe0=0xa0
+ 1480.0 MHz -> 11223.88 MHz V  SR= 34280  off= -6120 kHz  0x5f&0xe0=0xa0
+ 1510.0 MHz -> 11262.84 MHz V  SR= 34280  off= +2840 kHz  0x5f&0xe0=0xa0
+ 1516.0 MHz -> 11262.44 MHz V  SR= 34280  off= -3560 kHz  0x5f&0xe0=0xa0
+ 1522.0 MHz -> 11264.60 MHz V  SR= 34280  off= -7400 kHz  0x5f&0xe0=0x60
+ 1546.0 MHz -> 11301.40 MHz V  SR= 34290  off= +5400 kHz  0x5f&0xe0=0x40
+ 1552.0 MHz -> 11302.92 MHz V  SR= 34280  off=  +920 kHz  0x5f&0xe0=0xa0
+ 1558.0 MHz -> 11301.88 MHz V  SR= 34280  off= -6120 kHz  0x5f&0xe0=0xa0
+ 1588.0 MHz -> 11342.76 MHz V  SR= 34280  off= +4760 kHz  0x5f&0xe0=0xa0
+ 1594.0 MHz -> 11343.00 MHz V  SR= 34280  off= -1000 kHz  0x5f&0xe0=0xa0
+ 1600.0 MHz -> 11342.60 MHz V  SR= 34280  off= -7400 kHz  0x5f&0xe0=0xa0
+# 12 portadoras en 1.0 min
+
+# Puntos centrados (offset mínimo) -> frecuencia real de cada portadora:
+#   11222.4 / 11262.4 / 11302.9 / 11343.0 MHz, SR 34280
+# Comparado con el barrido plano (blindscan_..._limpio.conf):
+#   11224 / 11264 / 11305 / 11344  -> coinciden dentro de ~1 MHz.

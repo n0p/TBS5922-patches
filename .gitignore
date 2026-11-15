@@ -1,0 +1,16 @@
+# artefactos de compilación
+*.ko
+*.o
+*.mod
+*.mod.c
+.*.o.d
+.*.cmd
+.module-common.o
+Module.symvers
+modules.order
+.tmp_versions/
+__pycache__/
+*.pyc
+
+# firmware del fabricante (no se redistribuye)
+*.fw

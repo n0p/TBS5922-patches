@@ -1,0 +1,45 @@
+# dvbs-tune imprime tambien ds= (DELIVERY_SYSTEM) y mod= (MODULATION) leidos
+# de get_frontend, para que el barrido escriba un .conf DVBv5 correcto.
+
+--- a/tools/dvbs-tune.c
++++ b/tools/dvbs-tune.c
+@@ -129,19 +129,24 @@
+ 
+ 	/* ask the demod what it actually measured (get_frontend) */
+ 	long msr = -1;
++	int ds = -1, mod = -1;
+ 	if (locked) {
+ 		struct dvb_frontend_parameters legp;
+ 		memset(&legp, 0, sizeof(legp));
+ 		if (ioctl(fd, FE_GET_FRONTEND, &legp) == 0) {
+-			struct dtv_property q2[2];
++			struct dtv_property q2[3];
+ 			struct dtv_properties qc2;
+ 			memset(q2, 0, sizeof(q2));
+ 			q2[0].cmd = DTV_SYMBOL_RATE;
+ 			q2[1].cmd = DTV_DELIVERY_SYSTEM;
+-			qc2.num = 2;
++			q2[2].cmd = DTV_MODULATION;
++			qc2.num = 3;
+ 			qc2.props = q2;
+-			if (ioctl(fd, FE_GET_PROPERTY, &qc2) >= 0)
++			if (ioctl(fd, FE_GET_PROPERTY, &qc2) >= 0) {
+ 				msr = (long)(q2[0].u.data / 1000);
++				ds = (int)q2[1].u.data;
++				mod = (int)q2[2].u.data;
++			}
+ 			else
+ 				msr = (long)(legp.u.qpsk.symbol_rate / 1000);
+ 		} else {
+@@ -149,9 +154,9 @@
+ 		}
+ 	}
+ 
+-	printf("freq=%ld sr=%ld lock=%d status=0x%02x str=%d cnr=%d msr=%ld set=%ld took=%ld rc=%d errno=%d\n",
++	printf("freq=%ld sr=%ld lock=%d status=0x%02x str=%d cnr=%d msr=%ld ds=%d mod=%d set=%ld took=%ld rc=%d errno=%d\n",
+ 	       freq_khz, sr_ksps, locked, last_st & 0xff, max_str, best_cnr, msr,
+-	       set_ms, now_ms() - t0, rc, set_errno);
++	       ds, mod, set_ms, now_ms() - t0, rc, set_errno);
+ 	close(fd);
+ 	return locked ? 0 : 1;
+ }

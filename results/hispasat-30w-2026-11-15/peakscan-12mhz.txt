@@ -1,0 +1,6 @@
+# lab/peakscan.py -p V -b L --start 1450 --stop 1650 --step 12
+# 2026-11-15 21:41, Hispasat 30W. Paso 12 MHz (el del driver de Windows):
+# 2 de los 4 muxes de 34280 del tramo.
+ 1474.0 MHz -> 11223.00 MHz V  SR= 34280  off= -1000 kHz  0x5f&0xe0=0xa0
+ 1510.0 MHz -> 11261.56 MHz V  SR= 34280  off= +1560 kHz  0x5f&0xe0=0x80
+# 2 portadoras en 0.2 min

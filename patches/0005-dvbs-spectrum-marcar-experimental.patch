@@ -1,0 +1,17 @@
+# Marca tools/dvbs-spectrum.c como EXPERIMENTAL / NO FIABLE en su cabecera:
+# tocar solo el PLL y leer el AGC no reproduce los niveles reales.
+
+--- a/tools/dvbs-spectrum.c
++++ b/tools/dvbs-spectrum.c
+@@ -1,6 +1,11 @@
+ /*
+  * dvbs-spectrum - fast IF spectrum sweep for TBS 5922 / TAS2101 + AV2012.
+  *
++ * EXPERIMENTAL / NO FIABLE: el AGC del TAS2101 solo es valido tras la
++ * secuencia completa de set_frontend; escribir solo el PLL del tuner y leer
++ * SIGSTR da niveles planos que NO reproducen los nulos reales. Se conserva
++ * como referencia de lo que NO funciona. Usar dvbs-blindscan.
++ *
+  * The TAS2101 has no hardware spectrum/scan engine exposed by the Linux
+  * driver, but a full tune costs ~0.75 s (the FX2 bridge needs ~35 ms per
+  * control transfer and the driver rewrites every register).  For a spectrum

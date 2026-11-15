@@ -1,0 +1,12 @@
+# MODULE_VERSION a 0.3, para que modinfo no siga diciendo 0.2 con el paquete
+# DKMS en 0.3.
+
+--- a/tbs-qbox22.c
++++ b/tbs-qbox22.c
+@@ -404,5 +404,5 @@
+ 
+ MODULE_AUTHOR("Bob Liu <Bob@turbosight.com>");
+ MODULE_DESCRIPTION("Driver for TBS QBOX22");
+-MODULE_VERSION("0.2");
++MODULE_VERSION("0.3");
+ MODULE_LICENSE("GPL");

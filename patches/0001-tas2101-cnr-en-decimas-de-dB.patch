@@ -1,0 +1,15 @@
+# Corrige el CNR publicado por tas2101: la tabla esta en decimas de dB y
+# c->cnr.stat[0].uvalue va en centesimas, asi que hay que multiplicar por 10
+# (antes 100). Sintoma: dvb-fe-tool mostraba 128 dB donde hay 12,8 dB.
+
+--- a/tas2101.c
++++ b/tas2101.c
+@@ -259,7 +259,7 @@
+ 
+ 	c->cnr.len = 2;
+ 	c->cnr.stat[0].scale = FE_SCALE_DECIBEL;
+-	c->cnr.stat[0].uvalue = 100 * (s64) val;
++	c->cnr.stat[0].uvalue = 10 * (s64) val; /* val en decimas de dB */
+ 	c->cnr.stat[1].scale = FE_SCALE_RELATIVE;
+ 	c->cnr.stat[1].uvalue = *snr;
+ 	
